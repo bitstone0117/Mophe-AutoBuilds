@@ -232,7 +232,7 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
                 logging.debug(f"{method.__name__} failed: {e}")
                 continue
                 
-         if not input_apk or not version:
+        if not input_apk or not version:
             logging.warning(f"Failed to download version {ver or 'latest'} from all sources.")
             if report is not None:
                 report["error"] = f"Failed to download version {ver or 'latest'}"
