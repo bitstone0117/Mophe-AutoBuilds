@@ -7,20 +7,6 @@
     ]
   },
   {
-    "app_name": "youtube-music",
-    "source": "morphe",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "reddit",
-    "source": "morphe",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
     "app_name": "instagram",
     "source": "hushgram",
     "arches": [
@@ -28,106 +14,8 @@
     ]
   },
   {
-    "app_name": "twitter",
-    "source": "piko-newx",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "pinterest",
-    "source": "hushpinterest",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "telegram",
-    "source": "hushtelegram",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "sdmaidse",
-    "source": "paresh",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "threads",
-    "source": "hushthreads",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "google-photos",
-    "source": "rookie",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "depthwallpaper",
-    "source": "rushiranpise",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "pocketcasts",
-    "source": "rushiranpise",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "minimalwidgets",
-    "source": "rushiranpise",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "gboard",
-    "source": "jasonwu",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "duolingo",
-    "source": "hoodles",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "brave",
-    "source": "heval99",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "discord",
-    "source": "venus",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "chess",
-    "source": "noam",
-    "arches": [
-      "arm64-v8a"
-    ]
-  },
-  {
-    "app_name": "oddmar",
-    "source": "miguel-morphe-patches",
+    "app_name": "facebook",
+    "source": "hushfacebook",
     "arches": [
       "arm64-v8a"
     ]
