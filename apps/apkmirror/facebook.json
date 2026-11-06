@@ -5,6 +5,6 @@
   "arch": "arm64-v8a",
   "dpi": "120-640dpi",
   "package": "com.facebook.katana",
-  "version": "585.0.0.47.54",
-  "exclusive": true
+  "version": "",
+  "exclusive": false
 }
