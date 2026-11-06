@@ -1,4 +1,5 @@
 import json
+import hashlib
 import logging
 import re
 from sys import exit
@@ -60,6 +61,7 @@ def _record_failed_patches(app_name: str, output: str):
         data[app_name] = failed_patches
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+        raise RuntimeError("Selected patches failed; refusing to sign or publish")
             
 
 def run_build(app_name: str, source: str, arch: str = "universal", report: dict = None) -> str:
@@ -122,7 +124,7 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
 
         # Ensure universal/global patches bundle is loaded if not already present
         has_morphe_global = any("morphe-patches" in p.name.lower() for p in patches)
-        if not has_morphe_global:
+        if not has_morphe_global and source == "morphe":
             global_mpp = downloader.download_global_morphe_patches()
             if global_mpp and global_mpp not in patches:
                 patches.append(global_mpp)
@@ -174,6 +176,11 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
     
     # 2. Get supported versions from CLI
     supported_versions = utils.get_supported_versions(package_name, str(cli), patches) if package_name else []
+    if app_name == "facebook":
+        if source != "hushfacebook" or arch != "arm64-v8a":
+            raise RuntimeError("Facebook requires the validated Hush arm64 build")
+        supported_versions = ["585.0.0.47.54"]
+        utils.cli_version_codes[("com.facebook.katana", "585.0.0.47.54")] = {"arm64-v8a": 476015655}
     if not supported_versions:
         # Fallback to a single attempt with latest
         supported_versions = [None]
@@ -233,6 +240,14 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
             if report is not None:
                 report["error"] = f"Failed to download version {ver or 'latest'}"
             continue # Try next version
+
+        if app_name == "facebook":
+            expected = "1090dff6c9fe4903dd7c590f4d340bf0a912e43cd0a79c019c43bc265f5dda53"
+            with input_apk.open("rb") as handle:
+                actual = hashlib.file_digest(handle, "sha256").hexdigest()
+            if actual != expected:
+                input_apk.unlink(missing_ok=True)
+                raise RuntimeError("Facebook input differs from the Hush v0.21.0 validated bundle")
 
         # --- Normalize/merge input into .apk when needed ---
         if input_apk.suffix != ".apk":
@@ -335,7 +350,7 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
             if patch_installer not in include_patches and patch_installer not in exclude_patches:
                 dynamic_includes.append(patch_installer)
         
-        current_include_patches = include_patches + dynamic_includes
+        current_include_patches = include_patches + (dynamic_includes if source == "morphe" else [])
 
         if report is not None:
             report["version"] = utils.strip_arch_suffix(version)
@@ -356,14 +371,11 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
             # USE DIFFERENT COMMANDS BASED ON SOURCE TYPE
             if is_morphe:
                 logging.info("Using Morphe patching system...")
-                # --continue-on-error: skip individual patch failures instead of aborting.
-                # Do NOT pass -f (force): we want Morphe to reject APKs whose version is
-                # not supported by the patches so the outer version-retry loop can fall
-                # back to an older, compatible version automatically.
+                # Abort when any selected patch fails.
                 morphe_cmd = [
                     "java", "-Xms256m", "-Xmx4g", "-XX:+UseG1GC",
                     "-jar", str(cli),
-                    "patch", "--continue-on-error",
+                    "patch",
                 ]
                 for p in patches:
                     morphe_cmd.extend(["--patches", str(p)])
@@ -466,39 +478,17 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
         if not apksigner:
             raise RuntimeError("apksigner not found")
 
-        try:
-            utils.run_process([
-                str(apksigner), "sign", "--verbose",
-                "--ks", "keystore/public.jks",
-                "--ks-pass", "pass:public",
-                "--key-pass", "pass:public",
-                "--ks-key-alias", "public",
-                "--in", str(output_apk), "--out", str(signed_apk)
-            ], capture=True, stream=True)
-        except Exception as e:
-            logging.warning(f"Standard signing failed: {e}")
-            logging.info("Trying alternative signing method...")
-
-            utils.run_process([
-                str(apksigner), "sign", "--verbose",
-                "--min-sdk-version", "21",
-                "--ks", "keystore/public.jks",
-                "--ks-pass", "pass:public",
-                "--key-pass", "pass:public",
-                "--ks-key-alias", "public",
-                "--in", str(output_apk), "--out", str(signed_apk)
-            ], capture=True, stream=True)
-
+        required = ["SIGNING_KEYSTORE", "KEYSTORE_PASSWORD", "KEY_PASSWORD", "KEY_ALIAS"]
+        if any(not getenv(key) for key in required):
+            raise RuntimeError("Private signing configuration is missing")
+        utils.run_process([
+            str(apksigner), "sign", "--ks", getenv("SIGNING_KEYSTORE"),
+            "--ks-pass", "env:KEYSTORE_PASSWORD", "--key-pass", "env:KEY_PASSWORD",
+            "--ks-key-alias", getenv("KEY_ALIAS"),
+            "--in", str(output_apk), "--out", str(signed_apk)
+        ], capture=True)
+        utils.run_process([str(apksigner), "verify", "--verbose", str(signed_apk)], capture=True)
         output_apk.unlink(missing_ok=True)
-
-        # Verify signature
-        try:
-            utils.run_process([
-                str(apksigner), "verify", "--verbose", str(signed_apk)
-            ], capture=True, silent=True)
-            logging.info(f"Signature verified successfully for {signed_apk.name}")
-        except Exception as e:
-            logging.warning(f"Signature verification warning: {e}")
 
         print(f"APK built: {signed_apk.name}")
         return str(signed_apk)
@@ -571,6 +561,9 @@ def main():
         with open(f"build_records/build_report_{app_name}.json", "w") as f:
             json.dump(build_reports, f)
         
+        if len(built_apks) != len(arches):
+            raise RuntimeError("One or more requested builds failed")
+
         # Summary
         print(f"\nBuilt {len(built_apks)} APK(s) for {app_name}:")
         for apk in built_apks:
