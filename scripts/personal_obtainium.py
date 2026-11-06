@@ -1,17 +1,28 @@
-"""All three APKs share a unique release tag, including patch-only rebuilds."""
+"""Generate Obtainium import settings for personal builds."""
 import json
 import os
 from pathlib import Path
 
-repo = os.environ['GITHUB_REPOSITORY']
+repo = os.environ["GITHUB_REPOSITORY"]
+
+package_ids = {
+    "facebook": "com.facebook.katana",
+    "instagram": "com.instagram.android",
+    "youtube": "app.morphe.android.youtube",
+}
+
 apps = []
-for name in ('facebook', 'instagram', 'youtube'):
+for name, package_id in package_ids.items():
     apps.append({
-        'url': f'https://github.com/{repo}',
-        'name': name.title(),
-        'author': repo.split('/')[0],
-        'additionalSettings': json.dumps({
-            'apkFilterRegEx': f'^{name}-.*\\.apk$',
+        "id": package_id,
+        "url": f"https://github.com/{repo}",
+        "name": name.title(),
+        "author": repo.split("/")[0],
+        "additionalSettings": json.dumps({
+            "apkFilterRegEx": rf"^{name}-.*\.apk$",
         }),
     })
-Path('release-apks/obtainium.json').write_text(json.dumps({'apps': apps}, indent=2))
+
+Path("release-apks/obtainium.json").write_text(
+    json.dumps({"apps": apps, "settings": None}, indent=2)
+)
