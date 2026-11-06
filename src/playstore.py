@@ -600,7 +600,69 @@ def get_download_link(version: str, app_name: str, config: dict) -> str | None:
             shutil.rmtree(splits_dir, ignore_errors=True)
         logging.error(f"PlayStore: download failed for {app_name} {version}")
         return None
+      
+    # Verify original Facebook split APKs before merging.
+    if app_name == "facebook":
+        from src import utils
 
+        expected_cert = (
+            "e3f9e1e0cf99d0e56a055ba65e241b3"
+            "399f7cea524326b0cdd6ec1327ed0fdc1"
+        )
+
+        apksigner = utils.find_apksigner()
+        split_apks = sorted(splits_dir.rglob("*.apk"))
+
+        if not apksigner or not split_apks:
+            raise RuntimeError(
+                "Facebook signing verification unavailable"
+            )
+
+        for apk in split_apks:
+            result = subprocess.run(
+                [
+                    str(apksigner),
+                    "verify",
+                    "--verbose",
+                    "--print-certs",
+                    str(apk),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            output = result.stdout + result.stderr
+            certs = re.findall(
+                r"Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F:]+)",
+                output,
+            )
+            certs = [
+                cert.lower().replace(":", "")
+                for cert in certs
+            ]
+
+            info = utils.get_apk_manifest_info(apk)
+
+            if (
+                result.returncode != 0
+                or certs != [expected_cert]
+                or info.get("package") != package
+                or info.get("versionCode") != int(version_code)
+                or (
+                    info.get("versionName")
+                    and info["versionName"] != version
+                )
+            ):
+                raise RuntimeError(
+                    f"Facebook original APK verification failed: "
+                    f"{apk.name}; manifest={info}"
+                )
+
+        logging.info(
+            f"Verified {len(split_apks)} original Facebook "
+            f"split APK signatures and versionCodes"
+        )
+  
     merged = _merge_splits(splits_dir, output_apk, target_arch=target_arch)
     if splits_dir.exists():
         shutil.rmtree(splits_dir, ignore_errors=True)
