@@ -645,7 +645,7 @@ def get_download_link(version: str, app_name: str, config: dict) -> str | None:
 
             if (
                 result.returncode != 0
-                or certs != [expected_cert]
+                or expected_cert not in certs
                 or info.get("package") != package
                 or info.get("versionCode") != int(version_code)
                 or (
