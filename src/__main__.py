@@ -176,8 +176,8 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
     if app_name == "facebook":
         if source != "hushfacebook" or arch != "arm64-v8a":
             raise RuntimeError("Facebook requires HushFacebook arm64-v8a")
-    if not supported_versions:
-        raise RuntimeError("HushFacebook has no compatible versions; refusing to build")
+        if not supported_versions:
+            raise RuntimeError("HushFacebook has no compatible versions; refusing to build")
 
     if not supported_versions:
         supported_versions = [None]
