@@ -1,6 +1,16 @@
 name: Personal FB IG YouTube
 on:
   workflow_dispatch:
+    inputs:
+      app:
+        description: 'Build all apps or test one app (single-app tests do not publish)'
+        type: choice
+        default: all
+        options:
+          - all
+          - youtube
+          - instagram
+          - facebook
   schedule:
     - cron: '17 0 * * *'
 permissions:
@@ -15,14 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 3
-      matrix:
-        include:
-          - app: youtube
-            source: morphe
-          - app: instagram
-            source: hushgram
-          - app: facebook
-            source: hushfacebook
+      matrix: ${{ fromJSON((github.event_name == 'schedule' || inputs.app == 'all') && '{"include":[{"app":"youtube","source":"morphe"},{"app":"instagram","source":"hushgram"},{"app":"facebook","source":"hushfacebook"}]}' || inputs.app == 'youtube' && '{"include":[{"app":"youtube","source":"morphe"}]}' || inputs.app == 'instagram' && '{"include":[{"app":"instagram","source":"hushgram"}]}' || '{"include":[{"app":"facebook","source":"hushfacebook"}]}') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -67,6 +70,7 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/signing.p12"
   publish:
+    if: github.event_name == 'schedule' || inputs.app == 'all'
     needs: build
     runs-on: ubuntu-latest
     permissions:
