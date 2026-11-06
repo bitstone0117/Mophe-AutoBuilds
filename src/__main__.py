@@ -122,13 +122,9 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
             # Fallback to any .mpp file
             patches = utils.find_files(download_files, suffix=".mpp")
 
-        # Ensure universal/global patches bundle is loaded if not already present
-        has_morphe_global = any("morphe-patches" in p.name.lower() for p in patches)
-        if not has_morphe_global and source == "morphe":
-            global_mpp = downloader.download_global_morphe_patches()
-            if global_mpp and global_mpp not in patches:
-                patches.append(global_mpp)
-                logging.info(f"Loaded global Morphe patches bundle: {global_mpp.name}")
+        # sources/morphe.json already downloads the official bundle, whose
+        # release asset is named patches-<version>.mpp. Adding the same bundle
+        # under morphe-patches.mpp runs branding/settings patches twice.
     else:
         # Find ReVanced files
         cli = utils.find_file(download_files, contains="revanced-cli", suffix=".jar")
@@ -495,7 +491,7 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
 
     # If we got here, every candidate version failed for the requested architecture.
     # If the requested architecture was not universal (e.g. arm64-v8a), automatically fall back to universal.
-    if arch != "universal":
+    if arch != "universal" and app_name != "facebook":
         logging.warning(
             f"Build failed for {app_name} on {arch} across all sources and versions. "
             f"Falling back to universal architecture..."
@@ -538,7 +534,7 @@ def main():
             except Exception as e:
                 logging.error(f"Error building {app_name} for {arch}: {e}")
                 apk_path = None
-                if arch != "universal":
+                if arch != "universal" and app_name != "facebook":
                     logging.warning(f"{arch} build failed for {app_name}. Retrying with universal architecture...")
                     try:
                         universal_report = {"app": app_name, "arch": "universal", "source": source, "status": "failed", "version": None, "patches": []}
