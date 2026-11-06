@@ -19,7 +19,25 @@ concurrency:
   group: personal-build
   cancel-in-progress: false
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      has_updates: ${{ steps.detect.outputs.has_updates }}
+      state_b64: ${{ steps.detect.outputs.state_b64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check upstream patch updates
+        id: detect
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/check_personal_updates.py
+
   build:
+    needs: check
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.check.outputs.has_updates == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -78,7 +96,7 @@ jobs:
           rm -f "$HOME/.config/gplaydl"/auth-*.json
   publish:
     if: github.event_name == 'schedule' || inputs.app == 'all'
-    needs: build
+    needs: [check, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -92,9 +110,12 @@ jobs:
       - name: Publish complete build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATE_B64: ${{ needs.check.outputs.state_b64 }}
         run: |
           test "$(find release-apks -name '*.apk' | wc -l)" -eq 3
           python scripts/personal_obtainium.py
+          printf '%s' "$STATE_B64" | base64 --decode > release-apks/source-state.json
+          python -m json.tool release-apks/source-state.json > /dev/null
           cd release-apks
           sha256sum *.apk > SHA256SUMS.txt
-          gh release create "build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}" *.apk SHA256SUMS.txt obtainium.json --title "Personal build ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" --notes 'YouTube (Morphe), Instagram (HushGram), Facebook (HushFacebook). All selected builds and APK signature verification passed. Device installation is not yet verified.' --latest
+          gh release create "build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}" *.apk SHA256SUMS.txt obtainium.json source-state.json --title "Personal build ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" --notes 'YouTube (Morphe), Instagram (HushGram), Facebook (HushFacebook). All selected builds and APK signature verification passed. Device installation is not yet verified.' --latest
