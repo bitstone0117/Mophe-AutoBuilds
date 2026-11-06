@@ -53,11 +53,16 @@ jobs:
           APP_NAME: ${{ matrix.app }}
           SOURCE: ${{ matrix.source }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPLAYDL_API_KEY: ${{ secrets.GPLAYDL_API_KEY }}
           SIGNING_KEYSTORE: ${{ runner.temp }}/signing.p12
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
+          if [ "$APP_NAME" = instagram ] && [ -z "$GPLAYDL_API_KEY" ]; then
+            echo "::error::Configure GPLAYDL_API_KEY in repository Actions secrets to enable Google Play downloads."
+            exit 1
+          fi
           python -m src
           python scripts/collect_personal_build.py
       - uses: actions/upload-artifact@v4
@@ -66,9 +71,11 @@ jobs:
           path: release-apks/*.apk
           if-no-files-found: error
           retention-days: 3
-      - name: Remove signing key
+      - name: Remove signing key and Google Play tokens
         if: always()
-        run: rm -f "$RUNNER_TEMP/signing.p12"
+        run: |
+          rm -f "$RUNNER_TEMP/signing.p12"
+          rm -f "$HOME/.config/gplaydl"/auth-*.json
   publish:
     if: github.event_name == 'schedule' || inputs.app == 'all'
     needs: build
