@@ -172,13 +172,14 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
     
     # 2. Get supported versions from CLI
     supported_versions = utils.get_supported_versions(package_name, str(cli), patches) if package_name else []
+
     if app_name == "facebook":
         if source != "hushfacebook" or arch != "arm64-v8a":
-            raise RuntimeError("Facebook requires the validated Hush arm64 build")
-        supported_versions = ["585.0.0.47.54"]
-        utils.cli_version_codes[("com.facebook.katana", "585.0.0.47.54")] = {"arm64-v8a": 476015655}
+            raise RuntimeError("Facebook requires HushFacebook arm64-v8a")
     if not supported_versions:
-        # Fallback to a single attempt with latest
+        raise RuntimeError("HushFacebook has no compatible versions; refusing to build")
+
+    if not supported_versions:
         supported_versions = [None]
         logging.warning("No supported versions found, will attempt to fetch latest.")
 
