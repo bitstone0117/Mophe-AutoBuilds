@@ -655,7 +655,14 @@ def get_download_link(version: str, app_name: str, config: dict) -> str | None:
             ):
                 raise RuntimeError(
                     f"Facebook original APK verification failed: "
-                    f"{apk.name}; manifest={info}"
+                    f"file={apk.name}; "
+                    f"apksigner_exit={result.returncode}; "
+                    f"actual_certs={certs}; "
+                    f"expected_cert={expected_cert}; "
+                    f"manifest={info}; "
+                    f"expected_version={version}; "
+                    f"expected_code={version_code}; "
+                    f"apksigner_output={output[-800:]}"
                 )
 
         logging.info(
