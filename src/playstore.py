@@ -633,7 +633,7 @@ def get_download_link(version: str, app_name: str, config: dict) -> str | None:
 
             output = result.stdout + result.stderr
             certs = re.findall(
-                r"Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F:]+)",
+                r"(?m)^Signer (?:#\d+|\([^)]*\)) certificate SHA-256 digest:[ \t]*([0-9a-fA-F:]+)[ \t]*$",
                 output,
             )
             certs = [
