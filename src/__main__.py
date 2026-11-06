@@ -232,19 +232,53 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
                 logging.debug(f"{method.__name__} failed: {e}")
                 continue
                 
-        if not input_apk or not version:
+         if not input_apk or not version:
             logging.warning(f"Failed to download version {ver or 'latest'} from all sources.")
             if report is not None:
                 report["error"] = f"Failed to download version {ver or 'latest'}"
             continue # Try next version
 
         if app_name == "facebook":
-            expected = "1090dff6c9fe4903dd7c590f4d340bf0a912e43cd0a79c019c43bc265f5dda53"
-            with input_apk.open("rb") as handle:
-                actual = hashlib.file_digest(handle, "sha256").hexdigest()
-            if actual != expected:
-                input_apk.unlink(missing_ok=True)
-                raise RuntimeError("Facebook input differs from the Hush v0.21.0 validated bundle")
+            if dl_method_name == "download_playstore":
+                # Original Google Play splits were already verified
+                # before merging in src/playstore.py.
+                if input_apk.suffix.lower() != ".apk":
+                    raise RuntimeError(
+                        "Facebook Google Play source must return a merged APK"
+                    )
+                logging.info(
+                    "Facebook Google Play signature and build checks passed"
+                )
+
+            elif (
+                dl_method_name == "download_apkmirror"
+                and ver == "585.0.0.47.54"
+            ):
+                # Keep the validated HushFacebook v0.21.0 fallback.
+                if input_apk.suffix.lower() != ".apkm":
+                    raise RuntimeError(
+                        "Expected original APKMirror .apkm bundle"
+                    )
+
+                expected = (
+                    "1090dff6c9fe4903dd7c590f4d340bf0"
+                    "a912e43cd0a79c019c43bc265f5dda53"
+                )
+                with input_apk.open("rb") as handle:
+                    actual = hashlib.file_digest(
+                        handle, "sha256"
+                    ).hexdigest()
+
+                if actual != expected:
+                    input_apk.unlink(missing_ok=True)
+                    raise RuntimeError(
+                        "Facebook APKMirror SHA-256 mismatch"
+                    )
+
+            else:
+                raise RuntimeError(
+                    f"Unapproved Facebook source: {dl_method_name}"
+                )
 
         # --- Normalize/merge input into .apk when needed ---
         if input_apk.suffix != ".apk":
