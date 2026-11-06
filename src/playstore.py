@@ -618,6 +618,35 @@ def get_download_link(version: str, app_name: str, config: dict) -> str | None:
         )
         output_apk.unlink(missing_ok=True)
         return None
+      
+    # Facebook: verify the exact build required by HushFacebook.
+    # Values are discovered dynamically from the patch CLI.
+    if app_name == "facebook":
+        expected_codes = utils.cli_version_codes.get(
+            (package, version), {}
+        )
+        expected_code = expected_codes.get("arm64_v8a")
+
+        if (
+            expected_code is None
+            or info.get("package") != "com.facebook.katana"
+            or info.get("versionName") != version
+            or info.get("versionCode") != expected_code
+        ):
+            logging.error(
+                f"Facebook build mismatch: "
+                f"expected package={package}, "
+                f"version={version}, "
+                f"versionCode={expected_code}; "
+                f"actual={info}"
+            )
+            output_apk.unlink(missing_ok=True)
+            return None
+
+        logging.info(
+            f"Facebook manifest verified: "
+            f"{version}, versionCode={expected_code}"
+        )
 
     # Verify native libraries for non-universal builds of apps known to contain native code
     if target_arch != "universal":
