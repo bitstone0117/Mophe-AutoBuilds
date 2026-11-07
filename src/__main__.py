@@ -15,6 +15,25 @@ from src import (
     downloader
 )
 
+def _morphe_bundle_args(patches, enabled, disabled):
+    """Morphe selections belong to the preceding --patches bundle, not globally.
+
+    The optional clone- bundle provides only Clone app for HushFacebook;
+    all other explicit selections belong to the primary patch bundle.
+    """
+    has_clone_bundle = any(p.name.startswith("clone-") for p in patches)
+    args = []
+    for bundle in patches:
+        args.extend(["--patches", str(bundle)])
+        is_clone_bundle = bundle.name.startswith("clone-")
+        for flag, selections in (("-d", disabled), ("-e", enabled)):
+            for name in selections:
+                if has_clone_bundle and (name == "Clone app") != is_clone_bundle:
+                    continue
+                args.extend([flag, name])
+    return args
+
+
 def _should_retry_with_older_version(output: str | None) -> bool:
     """Detect common patterns that indicate the chosen app version is not
     actually compatible with the selected patches (fingerprint mismatch, etc.)."""
@@ -408,13 +427,9 @@ def run_build(app_name: str, source: str, arch: str = "universal", report: dict 
                     "-jar", str(cli),
                     "patch",
                 ]
-                for p in patches:
-                    morphe_cmd.extend(["--patches", str(p)])
-
-                for p in exclude_patches:
-                    morphe_cmd.extend(["-d", str(p)])
-                for p in current_include_patches:
-                    morphe_cmd.extend(["-e", str(p)])
+                morphe_cmd.extend(_morphe_bundle_args(
+                    patches, current_include_patches, exclude_patches
+                ))
 
                 morphe_cmd.extend([
                     "--out", str(output_apk), str(input_apk)
