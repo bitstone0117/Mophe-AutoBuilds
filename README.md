@@ -1,263 +1,118 @@
-# 個人 FB / IG / YouTube 自動建置
+# Personal APK AutoBuilds — YouTube / Instagram / Facebook / Discord
 
-本 Fork 僅建置 **YouTube（Morphe）、Instagram（HushGram）、Facebook（HushFacebook）**。
+> A personal fork of [yashrajrocxx/Mophe-AutoBuilds](https://github.com/yashrajrocxx/Mophe-AutoBuilds). This README describes **this fork's configuration**, not the upstream app catalog or upstream download links.
 
-- 設定與限制：[PERSONAL_SETUP.md](PERSONAL_SETUP.md)
-- 自動化：[Personal FB IG YouTube](../../actions/workflows/personal-build.yml)
-- APK 與 Obtainium 設定：[本 Fork 的 Releases](../../releases)
-- 每天台灣時間 08:17；三個建置全數成功才發布。尚未完成第一次雲端建置及手機測試。
+This repository uses GitHub Actions to check community patch releases, build selected patched Android APKs, sign them with the configured private key, and publish them to [this fork's Releases](https://github.com/bitstone0117/Mophe-AutoBuilds/releases). It only builds the apps whose monitored patch source has changed; a manual run can force a particular app.
 
-> 下方是上游原始說明，下載連結與功能描述屬於上游專案，不代表本 Fork 的設定。請以 PERSONAL_SETUP.md 為準。
+**Links:** [Personal build workflow](.github/workflows/personal-build.yml) · [Actions / run history](https://github.com/bitstone0117/Mophe-AutoBuilds/actions/workflows/personal-build.yml) · [Latest Release](https://github.com/bitstone0117/Mophe-AutoBuilds/releases/latest) · [Setup / troubleshooting notes](PERSONAL_SETUP.md) (some historical notes there describe earlier versions of this fork).
 
----
+## Supported apps
 
-<div align="center">
+| App | Patch source | Android package ID in the generated APK | Architecture |
+| --- | --- | --- | --- |
+| YouTube (Morphe) | [Morphe patches](https://github.com/MorpheApp/morphe-patches) | `app.morphe.android.youtube` | `universal` |
+| Instagram (HushGram) | [HushGram](https://github.com/SysAdminDoc/HushGram) | `com.instagram.android` | `arm64-v8a` |
+| Facebook (HushFacebook + Morphe Clone app) | [HushFacebook](https://github.com/SysAdminDoc/HushFacebook), plus Morphe clone patch | `com.facebook.katana.morphe` | `arm64-v8a` |
+| Discord (Venus) | [Venus Patches](https://github.com/VenusIsJaded/Venus-Patches) | `com.discord` | `arm64-v8a` |
 
-# Morphe Custom AutoBuilds (Non-Root)
+**Facebook is a clone:** Its package ID differs from stock Facebook's `com.facebook.katana`, so it can coexist with a Samsung/preinstalled Facebook app. Instagram and Discord retain their normal package IDs; modified signatures can conflict with already installed official apps. Do not uninstall an existing app merely to fix a signature conflict if you need to preserve its data. The same signing key should be retained across future builds.
 
-[![Daily Build](https://img.shields.io/github/actions/workflow/status/yashrajrocxx/Mophe-AutoBuilds/patch.yml?label=Daily%20Build&style=for-the-badge&color=2ea44f)](https://github.com/yashrajrocxx/Mophe-AutoBuilds/actions/workflows/patch.yml)
-[![Latest Release](https://img.shields.io/github/v/release/yashrajrocxx/Mophe-AutoBuilds?style=for-the-badge&label=Latest%20Release&color=0366d6)](https://github.com/yashrajrocxx/Mophe-AutoBuilds/releases/latest)
-[![Python Version](https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![License](https://img.shields.io/github/license/yashrajrocxx/Mophe-AutoBuilds?style=for-the-badge&color=orange)](LICENSE)
+## How automatic updates work
 
-<p align="center">
-  <a href="https://ko-fi.com/rookie_z" target="_blank"><img src="https://storage.ko-fi.com/cdn/kofi6.png?v=6" height="30" style="height:30px; border-radius:8px; display:inline-block;" alt="Donate via Ko-fi" /></a>
-  &nbsp;&nbsp;
-  <a href="https://buymeachai.ezee.li/RookieZ" target="_blank"><img src="https://raw.githubusercontent.com/TakiShiwa/donate-with-upi/ffbb38749891aeb62e758a3692698e346e3df2da/Button/SVG/UPI-light-blue-01.svg" height="30" style="height:30px; border-radius:8px; display:inline-block;" alt="Donate via UPI" /></a>
-  <br />
-  <a href="https://paypal.me/RookieEnough" target="_blank"><img src="https://raw.githubusercontent.com/stefan-niedermann/paypal-donate-button/master/paypal-donate-button.png" height="50" style="height:50px; border-radius:8px; display:inline-block; margin-top:8px;" alt="Donate via PayPal" /></a>
-</p>
+The workflow is [`.github/workflows/personal-build.yml`](.github/workflows/personal-build.yml).
 
-<p align="center">
-  <strong>Professional, Automated Custom APK Builder</strong><br>
-  Multi-source • arm64-v8a Optimized • GitHub Actions Powered
-</p>
+1. **Check:** `scripts/check_personal_updates.py` queries the latest patch Release for each of the four upstream sources. It compares release tags and patch Release asset metadata with the cumulative `source-state.json` stored in the **latest completed Release in this fork**.
+2. **Select:** If nothing changed, `check` succeeds and `build` / `publish` are skipped. If one or more monitored sources changed, the workflow selects **only those apps**.
+3. **Build and verify:** The selected APKs are downloaded, patched, signed, and checked. A failed build prevents publication.
+4. **Publish:** A draft Release is created with only the selected APK(s), `SHA256SUMS.txt`, `source-state.json`, and `obtainium.json`. The Release becomes public/latest only after all selected files upload successfully. Unselected apps keep their previous source-state baselines.
 
-<p align="center">
-A sophisticated, automated pipeline that builds ready-to-install custom patched applications for <strong>non-rooted Android devices</strong>. This project features a highly customized app selection utilizing diverse community patches instead of the standard official set. 
-</p>
+The checker tracks upstream **patch releases**, not all Play Store APK releases or every possible tool update. Failures in upstream/API requests do not count as successful checks.
 
-[![View Latest Release](https://img.shields.io/badge/View%20Latest%20Release-0A0A0A?style=flat&logo=github&logoColor=white)](https://github.com/yashrajrocxx/Mophe-AutoBuilds/releases/latest)
-[![Telegram Channel](https://img.shields.io/badge/Telegram_Channel-0A0A0A?style=flat&logo=telegram&logoColor=white)](https://t.me/morphe_autobuilds)
-[![Report Bug](https://img.shields.io/badge/Report%20Bug-0A0A0A?style=flat&logo=github&logoColor=white)](https://github.com/yashrajrocxx/Mophe-AutoBuilds/issues)
-[![Request Feature](https://img.shields.io/badge/Request%20Feature-0A0A0A?style=flat&logo=github&logoColor=white)](https://github.com/yashrajrocxx/Mophe-AutoBuilds/issues)
+A single-app Release is intentional: for example, if only Discord changes, that Release has the Discord APK and **does not re-upload** the unchanged YouTube, Instagram, or Facebook APKs.
 
-</div>
+### Scheduled checks (Taiwan / Asia-Taipei)
 
----
+The normal production schedule is:
 
-## Quick Downloads
-
-> **Last Updated:** August 11, 2026
-> **Note:** All APKs are automatically rebuilt daily at 06:00 UTC to ensure you have the latest features and security patches.
-
-### Download Links
-
-| Mirror | Description | Link |
-| :--- | :--- | :--- |
-| **GitHub Releases** | Primary source. Contains all builds. | [**Download Latest Release**](https://github.com/yashrajrocxx/Mophe-AutoBuilds/releases/latest) |
-
-### Obtainium Auto-Updates & 1-Click Install
-
-This repository provides full first-class integration with [**Obtainium**](https://github.com/ImranR98/Obtainium), allowing you to install and automatically receive daily background updates for any or all apps directly from GitHub Releases with zero manual downloads.
-
-#### Option 1: 1-Click Single App Install
-Click the **Add to Obtainium** badge for any app in the catalog below on your Android device (with Obtainium installed). Obtainium will automatically open with the exact repository, APK filter regex, and version extractor preconfigured!
-
-#### Option 2: Bulk Import All Apps
-To import the entire curated catalog at once:
-1. Open **Obtainium** on your Android device.
-2. Tap the **+** button (or navigate to **Import / Export**) $\rightarrow$ select **Import from URL**.
-3. Paste the configuration URL:
-   ```text
-   https://raw.githubusercontent.com/yashrajrocxx/Mophe-AutoBuilds/main/obtainium.json
-   ```
-4. Tap **Import**. All apps will be added to your Obtainium database and will automatically track daily releases.
-
-> [!NOTE]
-> **User Control & Local State:**
-> In Obtainium, importing an app or the `obtainium.json` bundle adds the configuration to your device's local database. It is **not** a forced synchronization—you retain full freedom to install, delete, pause, or pin whichever apps you choose.
-
-### Supported Apps & Patch Repositories
-
-This repository compiles optimized builds using specific community patch repositories for our curated application catalog:
-
-| Application | Package Name | Patch Source | Arch | Obtainium (1-Click) |
-| :--- | :--- | :--- | :---: | :---: |
-| **Brave Browser** | `com.brave.browser` | heval99 | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.brave.browser%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Brave%2520Browser%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522brave-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522brave-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Chess.com** | `com.chess` | noam | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.chess%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Chess.com%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522chess-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522chess-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Depth Wallpaper** | `com.jndapp.depth.live.wallpaper` | rushiranpise | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.jndapp.depth.live.wallpaper%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Depth%2520Wallpaper%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522depthwallpaper-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522depthwallpaper-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Discord** | `com.discord` | venus | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.discord%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Discord%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522discord-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522discord-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Duolingo** | `com.duolingo` | hoodles | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.duolingo%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Duolingo%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522duolingo-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522duolingo-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Gboard** | `dev.jason.com.google.android.inputmethod.latin` | jasonwu | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522dev.jason.com.google.android.inputmethod.latin%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Gboard%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522gboard-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522gboard-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Google Photos** | `app.morphe.android.apps.photos` | rookie | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522app.morphe.android.apps.photos%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Google%2520Photos%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522google-photos-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522google-photos-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Instagram** | `com.instagram.android` | hushgram | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.instagram.android%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Instagram%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522instagram-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522instagram-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Minimal Widgets** | `com.jndapp.minimal.widgets` | rushiranpise | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.jndapp.minimal.widgets%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Minimal%2520Widgets%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522minimalwidgets-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522minimalwidgets-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Oddmar** | `com.mobge.Oddmar` | miguel-morphe-patches | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.mobge.Oddmar%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Oddmar%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522oddmar-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522oddmar-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Pinterest** | `com.pinterest` | hushpinterest | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.pinterest%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Pinterest%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522pinterest-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522pinterest-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Pocket Casts** | `au.com.shiftyjelly.pocketcasts` | rushiranpise | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522au.com.shiftyjelly.pocketcasts%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Pocket%2520Casts%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522pocketcasts-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522pocketcasts-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Reddit** | `com.reddit.frontpage` | morphe | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.reddit.frontpage%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Reddit%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522reddit-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522reddit-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **SD Maid 2 / SE** | `eu.darken.sdmse` | paresh | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522eu.darken.sdmse%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522SD%2520Maid%25202%2520%2F%2520SE%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522sdmaidse-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522sdmaidse-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Telegram** | `org.telegram.messenger` | hushtelegram | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522org.telegram.messenger%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Telegram%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522telegram-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522telegram-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **Threads** | `com.instagram.barcelona` | hushthreads | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.instagram.barcelona%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522Threads%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522threads-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522threads-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **X (Twitter)** | `com.twitter.android` | piko-newx | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.twitter.android%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522X%2520%2528Twitter%2529%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522twitter-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522twitter-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **YouTube** | `app.morphe.android.youtube` | morphe | `universal` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522app.morphe.android.youtube%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522YouTube%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522youtube-universal-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522youtube-universal-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-| **YouTube Music** | `app.morphe.android.apps.youtube.music` | morphe | `arm64-v8a` | [![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add-7C3AED?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522app.morphe.android.apps.youtube.music%2522%252C%2522url%2522%253A%2522https%253A%2F%2Fyashrajrocxx.github.io%2FMophe-AutoBuilds%2Fdownloads.html%2522%252C%2522author%2522%253A%2522yashrajrocxx%2522%252C%2522name%2522%253A%2522YouTube%2520Music%2522%252C%2522preferredApkIndex%2522%253A0%252C%2522additionalSettings%2522%253A%2522%257B%255C%2522apkFilterRegEx%255C%2522%253A%255C%2522youtube-music-arm64-v8a-.%252A-v.%252A%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522versionExtractionRegEx%255C%2522%253A%255C%2522youtube-music-arm64-v8a-.%252A-v%2528%255B%255E%2F%255D%252B%2529%255C%255C%255C%255C.apk%2524%255C%2522%252C%255C%2522matchGroupToUse%255C%2522%253A%255C%25221%255C%2522%257D%2522%257D) |
-
-*(All builds are target-optimized for their respective architectures to reduce bundle sizes and increase device efficiency).*
-
----
-
-## Key Technical Enhancements
-
-This project has been massively overhauled with custom logic to provide maximum reliability:
-
-* **Direct Google Play Downloads (`gplaydl`):** Bypasses all scraping blocks (like APKMirror IP bans) by downloading split-APKs entirely directly and securely from Google Play servers.
-* **Smart Version History Resolver:** Automatically detects the exact community-recommended app version required by the patcher and traces its exact historical Google Play `versionCode` dynamically, falling back to the absolute latest version available if the patch supports it.
-* **Automated Split Merging:** Implements `APKEditor` to dynamically merge Google Play split `.apk` clusters into single, installable bases before applying patches.
-* **Fully Automated Pipeline:** GitHub Actions workflow executes daily at 06:00 UTC, requiring zero manual intervention, securing your tokens automatically via GitHub Secrets.
-* **Auto-Signing:** All APKs are signed with a consistent public keystore, making them ready to install immediately.
-* **Clean Release Cycle:** Previous releases are replaced rather than archived, preventing clutter and making it easy for external managers to track updates.
-
----
-
-## Repository Structure
-
-```text
-morphe-autobuilds/
-├── .github/workflows/      # GitHub Actions automation
-│   ├── patch.yml           # Daily automated builds (06:00 UTC)
-│   └── manual-patch.yml    # Manual trigger workflow
-├── apps/                   # APK source configurations
-├── patches/                # Patch inclusion/exclusion rules
-├── sources/                # ReVanced tool source definitions
-├── src/                    # Core Python build logic
-├── arch-config.json        # Architecture build matrix
-├── patch-config.json       # Custom App build configuration
-└── requirements.txt        # Project dependencies
+```yaml
+schedule:
+  - cron: '17 0,4 * * *'
 ```
 
----
+GitHub cron is in **UTC**: this means **08:17 and 12:17 Taiwan time** every day. GitHub Actions scheduling is best-effort; runs may be delayed or occasionally skipped.
 
-## Configuration Guide
+**Temporary schedule trigger test:** To test that GitHub actually starts `schedule` runs, change only the cron line on `main` to:
 
-This builder is highly configurable. You can adjust the following files to customize the build output.
+```yaml
+schedule:
+  - cron: '*/5 * * * *'
+```
 
-### 1. App Selection (`patch-config.json`)
+This is **temporary**, not the intended normal frequency. After a genuine scheduled run appears in Actions, restore `17 0,4 * * *` and commit again. The validation tests accept either value for this diagnostic purpose.
 
-Define which applications the pipeline should attempt to build.
+When viewing the Actions run, distinguish events:
+
+- `schedule`: GitHub triggered the workflow automatically — this is the event the test aims to verify.
+- `workflow_dispatch`: a person clicked **Run workflow** — it does not prove scheduling works.
+- `push`: a commit triggered validation — it also does not prove scheduling works.
+
+With no changed patch source, an expected successful scheduled run shows **check: success**, **build: skipped**, **publish: skipped**. Check that the workflow is enabled in the Actions UI, especially on a fork. Don't interpret an isolated missing 5-minute tick as definitive failure: GitHub's scheduler does not guarantee exact timing.
+
+### Manual build
+
+Open [Actions → Personal FB IG YouTube Discord](https://github.com/bitstone0117/Mophe-AutoBuilds/actions/workflows/personal-build.yml), click **Run workflow**, use branch `main`, then choose:
+
+- `all`: force a build and publish of all four apps.
+- `youtube`, `instagram`, `facebook`, or `discord`: force a build **and publish only that app**.
+
+**Manual builds are forced**, even if the upstream patch release has not changed. Avoid using `all` to test no-change automatic checks; only a real `schedule` run verifies that path.
+
+## Install and update with Obtainium
+
+Download `obtainium.json` from [this fork's latest Release](https://github.com/bitstone0117/Mophe-AutoBuilds/releases/latest), then import it into [Obtainium](https://github.com/ImranR98/Obtainium). Back up your existing Obtainium settings before replacing or importing app entries.
+
+The generated configuration tracks this repository, applies a separate APK filename filter for each app, and includes:
 
 ```json
 {
-  "patch_list": [
-    { "app_name": "youtube", "source": "morphe" },
-    { "app_name": "instagram", "source": "piko" }
-  ]
+  "fallbackToOlderReleases": true,
+  "versionDetection": false
 }
 ```
 
-### 2. Architecture Matrix (`arch-config.json`)
+- **Fallback to older releases** (繁中：**退回使用較舊的版本**) allows each app to find its newest APK even when the *latest* repository Release only contains a different app.
+- **Version detection disabled** avoids treating the Android APK `versionName` as equivalent to GitHub Release tags such as `build-15-1` and `build-16-1`.
 
-Specify which CPU architectures to target for each application. By default, `arm64-v8a` is targeted.
+Each app must follow **the newest Release that actually contains its matching APK**, not necessarily the repository's overall latest Release. For example, after a Discord-only Release, Discord may track `build-16-1` while the other three still track `build-15-1`.
 
-### 3. Source Definitions
+**Important:** Importing settings can initially show `未知` or offer updates for already-installed APKs until GitHub checks complete and Obtainium reconciles its locally tracked installation state. A displayed update button does not prove that APK has changed. Verify the installed APK matches the published build before choosing **標記為已更新**; that action only changes Obtainium's tracking record and does **not** install the APK.
 
-Located in the `apps/` directory.
+**GitHub rate limits:** If Obtainium reports too many requests, wait for the retry period or configure a GitHub personal access token inside **Obtainium → 設定 → 特定來源 → GitHub 個人存取權杖（可提高速率限制）**. Use a token with minimal read-only public-repository access; never publish or paste it into an issue, README, or chat.
 
-### 4. Patch Rules
+## GitHub Actions secrets and signing
 
-Located in `patches/`. Example for `patches/youtube-morphe.txt`. Use `+` to force include and `-` to exclude.
+Configure the following in **Settings → Secrets and variables → Actions** on your own fork before building:
 
-```text
-# Essential patches
-+ microg-support
-+ premium-heading
-+ hide-infocard-suggestions
+| Secret | Purpose |
+| --- | --- |
+| `KEYSTORE_BASE64` | Base64-encoded private signing keystore |
+| `KEYSTORE_PASSWORD` | Keystore password |
+| `KEY_PASSWORD` | Key password |
+| `KEY_ALIAS` | Signing alias |
+| `GPLAYDL_API_KEY` | Google Play download access required for the Instagram build in this workflow |
 
-# Exclusions
-- custom-branding
-- amoled
-```
+Signing material belongs only in GitHub Actions secrets; never commit the keystore or credential values. Existing installs need matching package IDs and signing certificates for in-place updates. The workflow can verify build artifacts and signatures, but on-device installation, logins, and compatibility must still be tested separately.
 
----
+## Project files
 
-## Local Build Instructions
+- `patch-config.json`: selected apps and patch sources
+- `arch-config.json`: architecture per app
+- `sources/` and `patches/`: upstream definitions and patch options
+- `scripts/check_personal_updates.py`: per-app change detection and published baseline tracking
+- `scripts/personal_obtainium.py`: generated Obtainium import settings
+- `scripts/publish_personal_release.sh`: selective Release publishing
+- `tests/test_personal_updates.py`: workflow, change-detection, and release-contract tests
 
-If you prefer to build the APKs on your own machine, follow these steps.
+## Credits and disclaimer
 
-### Prerequisites
-
-* Python 3.11 or higher
-* Java Runtime Environment (JRE)
-* `zip` utility
-* `apksigner` (part of Android SDK Build-Tools)
-
-### Installation & Execution
-
-1. **Clone the repository:**
-```bash
-git clone https://github.com/yashrajrocxx/Mophe-AutoBuilds.git
-cd Mophe-AutoBuilds
-```
-
-2. **Setup Local Environment:**
-Create a `.env` file in the root directory with your secure API tokens.
-
-3. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-pip install requests beautifulsoup4 python-dotenv
-```
-
-4. **Run the build:**
-You can build for a specific app and source.
-```bash
-export APP_NAME="youtube"
-export SOURCE="morphe"
-python -m src
-```
-
----
-
-## GitHub Actions Workflows
-
-### Daily Automated Build (`patch.yml`)
-* **Schedule:** Runs daily at 06:00 UTC.
-* **Function:** Iterates through all configured apps and architectures using secure GitHub Secrets.
-* **Output:** Updates the single "Latest" release tag.
-
-### Manual Build (`manual-patch.yml`)
-* **Trigger:** Manually via the GitHub Actions "Run workflow" button.
-* **Capabilities:** Target specific apps and force specific APK versions (all builds are `arm64-v8a`).
-
----
-
-## Contributing
-Contributions to improve the toolchain or add support for new apps are welcome.
-1. **Fork** the repository.
-2. **Create** a feature branch (`git checkout -b feature/new-app`).
-3. **Test** your changes locally using the Python scripts.
-4. **Commit** your changes (`git commit -m "Add support for new-app"`).
-5. **Push** to the branch (`git push origin feature/new-app`).
-6. **Open** a Pull Request.
-
----
-
-## Disclaimer & Legal
-
-> **Important:** This project is an automated build tool. The APKs provided in the releases are generated automatically using official and community ReVanced/Morphe tools and patches.
-
-* **Affiliation:** These builds are **not** officially affiliated with the original developers or the Morphe Team.
-* **Usage:** Provided for educational and convenience purposes only. Use at your own risk.
-* **GmsCore:** Morphe's MicroG-RE is required for apps relying on Google services to function correctly.
-* **Updates:** Patches are automatically pulled from the latest custom sources; builds may occasionally contain experimental features.
-
----
-
-<div align="center">
-
-**If you found this project helpful, please consider giving it a star.**  
-<br>
-**Maintained by RookieZ & Yashrajrocxx**
-
-</div>
+Forked from [yashrajrocxx/Mophe-AutoBuilds](https://github.com/yashrajrocxx/Mophe-AutoBuilds). Credits belong to the upstream maintainers and respective patch authors. This personal fork is not an official release of YouTube, Meta, Discord, Morphe, HushGram, HushFacebook, or Venus. Use patched APKs at your own risk and only from sources you trust. For the upstream's full original feature catalog and documentation, visit the upstream repository; its Release links and update schedule are **not** this fork's.
