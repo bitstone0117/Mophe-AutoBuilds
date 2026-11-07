@@ -69,6 +69,8 @@ def download_required(source: str) -> tuple[list[Path], str]:
         for asset in release["assets"]:
             asset_name = asset["name"]
             asset_url = asset["browser_download_url"]
+            # A second patch bundle can have the same release asset filename.
+            local_name = repo_info.get("asset_prefix", "") + asset_name
             if asset_name.endswith(".asc"):
                 continue
 
@@ -79,9 +81,9 @@ def download_required(source: str) -> tuple[list[Path], str]:
                 if asset_name.endswith(".mpp") or (
                     asset_name.lower().endswith(".jar")
                 ):
-                    downloaded_files.append(download_resource(asset_url))
+                    downloaded_files.append(download_resource(asset_url, name=local_name))
             else:
-                downloaded_files.append(download_resource(asset_url))
+                downloaded_files.append(download_resource(asset_url, name=local_name))
 
     return downloaded_files, name
 

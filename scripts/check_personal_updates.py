@@ -1,13 +1,17 @@
 """Check patch releases before rebuilding personal APKs."""
+import argparse
 import base64
 import json
 import os
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 API = "https://api.github.com"
 REPO = os.environ["GITHUB_REPOSITORY"]
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+BUILD_PROFILE = "facebook-clone-v1"
 
 SOURCES = {
     "youtube": ("MorpheApp", "morphe-patches"),
@@ -45,8 +49,8 @@ def source_signature(owner, name):
         key=lambda item: item["name"],
     )
 
-    if not assets:
-        raise RuntimeError(f"No release assets: {owner}/{name}")
+    if not any(item["name"].endswith(".mpp") for item in assets):
+        raise RuntimeError(f"No patch bundle in release: {owner}/{name}")
 
     return {
         "tag": release["tag_name"],
@@ -54,12 +58,23 @@ def source_signature(owner, name):
     }
 
 
-def main():
-    current = {
+def current_sources():
+    return {
         app: source_signature(owner, name)
         for app, (owner, name) in SOURCES.items()
     }
 
+
+def verify_state(path):
+    expected = json.loads(Path(path).read_text())["sources"]
+    if json.loads(Path(path).read_text()).get("build_profile") != BUILD_PROFILE:
+        raise RuntimeError("Build profile mismatch; refusing to publish")
+    if expected != current_sources():
+        raise RuntimeError("Patch sources changed during build; refusing to publish stale state. Retry the workflow.")
+
+
+def main():
+    current = current_sources()
     try:
         previous_release = fetch_json(
             f"{API}/repos/{REPO}/releases/latest"
@@ -70,6 +85,7 @@ def main():
         previous_release = None
 
     old_state = None
+    old_profile = None
     complete_release = False
 
     if previous_release:
@@ -94,12 +110,14 @@ def main():
         )
 
         if state_asset:
-            old_state = fetch_json(
+            saved_state = fetch_json(
                 state_asset["browser_download_url"],
                 authenticated=False,
-            ).get("sources")
+            )
+            old_state = saved_state.get("sources")
+            old_profile = saved_state.get("build_profile")
 
-    if old_state is None or not complete_release:
+    if old_state is None or not complete_release or old_profile != BUILD_PROFILE:
         changed = list(SOURCES)
     else:
         changed = [
@@ -108,7 +126,7 @@ def main():
         ]
 
     state = json.dumps(
-        {"sources": current},
+        {"sources": current, "build_profile": BUILD_PROFILE},
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -125,4 +143,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--verify-state", help="Abort publishing if upstream changed during build")
+    args = parser.parse_args()
+    if args.verify_state:
+        verify_state(args.verify_state)
+    else:
+        main()

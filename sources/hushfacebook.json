@@ -10,6 +10,13 @@
   },
   {
     "provider": "github",
+    "user": "MorpheApp",
+    "repo": "morphe-patches",
+    "tag": "latest",
+    "asset_prefix": "clone-"
+  },
+  {
+    "provider": "github",
     "user": "SysAdminDoc",
     "repo": "Hushfacebook",
     "tag": "latest"

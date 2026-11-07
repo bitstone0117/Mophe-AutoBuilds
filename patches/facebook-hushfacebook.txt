@@ -1,1 +1,3 @@
-# Apply the recommended HushFacebook selection.
+# Keep HushFacebook recommended patches, including clone compatibility fixes.
++Clone app
++Block ad telemetry
