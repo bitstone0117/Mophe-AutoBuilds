@@ -70,3 +70,57 @@ def test_stock_input_and_clone_patch_selection():
     selection = (ROOT / 'patches/facebook-hushfacebook.txt').read_text().splitlines()
     assert '+Clone app' in selection
     assert '+Block ad telemetry' in selection
+
+
+@pytest.mark.parametrize('reverse', [False, True])
+def test_clone_enable_is_scoped_to_its_bundle(reverse):
+    from src.__main__ import _morphe_bundle_args
+    bundles = [Path('clone-patches-2.1.0.mpp'), Path('patches-0.21.0.mpp')]
+    if reverse:
+        bundles.reverse()
+    args = _morphe_bundle_args(bundles, ['Clone app', 'Block ad telemetry'], ['Force dark mode'])
+    # Reconstruct the CLI's bundle scopes: flags bind to the preceding bundle.
+    scopes = {}
+    for flag, value in zip(args[::2], args[1::2]):
+        if flag == '--patches':
+            current = scopes.setdefault(value, [])
+        else:
+            current.append((flag, value))
+    assert scopes['clone-patches-2.1.0.mpp'] == [('-e', 'Clone app')]
+    assert scopes['patches-0.21.0.mpp'] == [('-d', 'Force dark mode'), ('-e', 'Block ad telemetry')]
+
+
+def test_single_bundle_selections_unchanged():
+    from src.__main__ import _morphe_bundle_args
+    assert _morphe_bundle_args([Path('patches.mpp')], ['Clone app'], ['Other']) == [
+        '--patches', 'patches.mpp', '-d', 'Other', '-e', 'Clone app'
+    ]
+
+
+def test_build_uses_scoped_arguments():
+    # Exercise the actual run_build path up to invoking Java, without an APK/network.
+    from src import __main__ as build
+    import inspect
+    import ast
+    source = inspect.getsource(build.run_build)
+    # Compile the production command-construction statements so the test catches
+    # regressing the call site to appending all selections after the last bundle.
+    tree = ast.parse(source)
+    branch = next(node for node in ast.walk(tree) if isinstance(node, ast.If)
+                  and isinstance(node.test, ast.Name) and node.test.id == 'is_morphe'
+                  and any(isinstance(n, ast.Assign) and any(isinstance(t, ast.Name)
+                          and t.id == 'morphe_cmd' for t in n.targets) for n in node.body))
+    statements = branch.body[:next(i for i, n in enumerate(branch.body)
+                                 if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name)
+                                 and t.id == 'output' for t in n.targets))]
+    namespace = {'logging': build.logging, '_morphe_bundle_args': build._morphe_bundle_args,
+                 'cli': Path('cli.jar'), 'patches': [Path('clone-patches.mpp'), Path('hush-patches.mpp')],
+                 'current_include_patches': ['Clone app', 'Block ad telemetry'], 'exclude_patches': [],
+                 'output_apk': Path('out.apk'), 'input_apk': Path('in.apk')}
+    exec(compile(ast.Module(body=statements, type_ignores=[]), '<production-command>', 'exec'), namespace)
+    command = namespace['morphe_cmd']
+    assert command[command.index('--patches'):] == [
+        '--patches', 'clone-patches.mpp', '-e', 'Clone app',
+        '--patches', 'hush-patches.mpp', '-e', 'Block ad telemetry',
+        '--out', 'out.apk', 'in.apk',
+    ]
