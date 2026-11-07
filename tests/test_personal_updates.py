@@ -275,7 +275,8 @@ def test_workflow_contract():
     assert ' -eq 4' not in script
     assert jobs['check']['outputs']['selected_apps']
     assert jobs['check']['outputs']['matrix_json']
-    assert workflow['on']['workflow_dispatch']['inputs']['app']['options'] == ['all', *APPS]
+    assert workflow['on']['workflow_dispatch']['inputs']['app']['options'] == ['all', 'check', *APPS]
+    assert "inputs.app != 'check'" in jobs['check']['steps'][-1]['env']['BUILD_SELECTION']
     for source, expected in [('morphe', ('MorpheApp', 'morphe-patches')),
                              ('hushgram', ('SysAdminDoc', 'HushGram')),
                              ('hushfacebook', ('SysAdminDoc', 'HushFacebook')),
