@@ -6,7 +6,6 @@
 - 自動化：[Personal FB IG YouTube](../../actions/workflows/personal-build.yml)
 - APK 與 Obtainium 設定：[本 Fork 的 Releases](../../releases)
 - 每天台灣時間 08:17；三個建置全數成功才發布。尚未完成第一次雲端建置及手機測試。
-- 需要先設定私人簽章 Secrets。Facebook 暫時固定在 HushFacebook v0.21.0 相容版本，尚未自動追蹤新版本。
 
 > 下方是上游原始說明，下載連結與功能描述屬於上游專案，不代表本 Fork 的設定。請以 PERSONAL_SETUP.md 為準。
 
