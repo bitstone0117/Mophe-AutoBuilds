@@ -66,7 +66,8 @@ def test_unchanged_skips_and_round_trips_state(checker, scenario):
     assert ('https://example/state', False) in calls
 
 
-@pytest.mark.parametrize('app', ['youtube', 'instagram', 'facebook'])
+
+@pytest.mark.parametrize('app', ['youtube', 'instagram', 'facebook', 'discord'])
 @pytest.mark.parametrize('change', ['tag', 'asset_id', 'digest'])
 def test_each_source_update_triggers_build(checker, scenario, app, change):
     releases, _, _, output, _ = scenario
@@ -132,8 +133,8 @@ def test_publish_rejects_changed_upstream(checker, scenario, tmp_path):
 
 
 @pytest.mark.parametrize('fail_create', [False, True])
-def test_release_only_goes_public_after_successful_upload(tmp_path, fail_create):
-    for app in ['youtube', 'instagram', 'facebook']:
+def test_release_only_goes_public_after_successful_upload(tmp_path, fail_create):  
+    for app in ['youtube', 'instagram', 'facebook', 'discord']:
         (tmp_path / f'{app}-test.apk').write_text('apk')
     fake = tmp_path / 'gh'
     fake.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$GH_LOG"\n'
@@ -165,7 +166,7 @@ def test_workflow_contract():
     script = jobs['publish']['steps'][-1]['run']
     assert script.index('--verify-state') < script.index('publish_personal_release.sh')
     matrix = jobs['build']['strategy']['matrix']
-    for app in ['youtube', 'instagram', 'facebook']:
+    for app in ['youtube', 'instagram', 'facebook', 'discord']:
         assert f'"app":"{app}"' in matrix
     for source, expected in [('morphe', ('MorpheApp', 'morphe-patches')),
                               ('hushgram', ('SysAdminDoc', 'HushGram')),
@@ -184,6 +185,7 @@ def test_workflow_contract():
     ('workflow_dispatch', 'youtube', 'true', 'success', True, False),
     ('workflow_dispatch', 'instagram', 'true', 'success', True, False),
     ('workflow_dispatch', 'facebook', 'true', 'success', True, False),
+    ('workflow_dispatch', 'discord', 'true', 'success', True, False),
 ])
 def test_actual_job_conditions(event, app, updates, build_result, want_build, want_publish):
     workflow = yaml.load((ROOT / '.github/workflows/personal-build.yml').read_text(), Loader=yaml.BaseLoader)
