@@ -11,12 +11,13 @@ API = "https://api.github.com"
 REPO = os.environ["GITHUB_REPOSITORY"]
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
-BUILD_PROFILE = "facebook-clone-v1"
+BUILD_PROFILE = "facebook-clone-discord-v1"
 
 SOURCES = {
     "youtube": ("MorpheApp", "morphe-patches"),
     "instagram": ("SysAdminDoc", "HushGram"),
     "facebook": ("SysAdminDoc", "HushFacebook"),
+    "discord": ("VenusIsJaded", "Venus-Patches"),
 }
 
 
