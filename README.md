@@ -63,9 +63,34 @@ With no changed patch source, an expected successful scheduled run shows **check
 Open [Actions → Personal FB IG YouTube Discord](https://github.com/bitstone0117/Mophe-AutoBuilds/actions/workflows/personal-build.yml), click **Run workflow**, use branch `main`, then choose:
 
 - `all`: force a build and publish of all four apps.
+- `check`: perform the normal **selective update check** (build/publish only changed patch sources; skip if none changed). This is suitable for external scheduled `workflow_dispatch` calls.
 - `youtube`, `instagram`, `facebook`, or `discord`: force a build **and publish only that app**.
 
-**Manual builds are forced**, even if the upstream patch release has not changed. Avoid using `all` to test no-change automatic checks; only a real `schedule` run verifies that path.
+Manual `all` and single-app selections are forced, even if the upstream patch release has not changed. The new `check` selection is **not** forced. It tests the checker and supports external scheduled dispatch, but a `workflow_dispatch` run alone does not prove GitHub's native `schedule` event works.
+
+
+### Workaround when native GitHub `schedule` never fires
+
+If the repository's Actions history shows **zero `schedule` events**, even while enabled and on `main`, the problem occurs before the checker job runs. GitHub's own scheduler cannot be repaired from inside `check_personal_updates.py`. GitHub's public-fork and scheduling behavior is described in the [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+
+As an **optional** workaround, an external scheduler that supports custom HTTP requests (such as [cron-job.org](https://cron-job.org/en/)) can send a `POST` to GitHub's [workflow dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event):
+
+```text
+POST https://api.github.com/repos/bitstone0117/Mophe-AutoBuilds/actions/workflows/personal-build.yml/dispatches
+Authorization: Bearer <fine-grained PAT>
+Accept: application/vnd.github+json
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{"ref":"main","inputs":{"app":"check"}}
+```
+
+Create the fine-grained PAT for **only this repository**, granting only **Actions: Read and write** (required by the dispatch API). It is **not** the read-only GitHub PAT used by Obtainium. Treat this PAT as a privileged secret: an external scheduler would hold it, so use a trustworthy service, a limited expiration, and revoke it if no longer needed. Do not put the token in code, Release assets, README, support tickets, or chat.
+
+Configure the external scheduler for Taiwan 08:17 and 12:17 and verify its timezone setting. A successful API request creates a **`workflow_dispatch`** run, not a native `schedule` run. The `check` input is essential: omitting it would use the `all` default and force four rebuilds on each call. This workaround requires separate account setup and has **not** been configured in this repository automatically.
 
 ## Install and update with Obtainium
 
