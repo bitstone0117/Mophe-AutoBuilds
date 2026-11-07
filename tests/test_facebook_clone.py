@@ -48,7 +48,9 @@ def test_obtainium_tracks_clone_only_for_facebook(tmp_path, monkeypatch):
         'Facebook': 'com.facebook.katana.morphe',
         'Instagram': 'com.instagram.android',
         'Youtube': 'app.morphe.android.youtube',
+        'Discord': 'com.discord',
     }
+
 
 
 def test_both_patch_bundles_survive_identical_filenames(monkeypatch):
