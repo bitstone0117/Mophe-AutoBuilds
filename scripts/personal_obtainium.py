@@ -1,4 +1,4 @@
-"""Generate Obtainium import settings for personal builds."""
+"""Generate Obtainium import settings for selectively published personal builds."""
 import json
 import os
 from pathlib import Path
@@ -21,6 +21,11 @@ for name, package_id in package_ids.items():
         "author": repo.split("/")[0],
         "additionalSettings": json.dumps({
             "apkFilterRegEx": rf"^{name}-.*\.apk$",
+            # A release may contain just one updated app. Search older
+            # releases for the latest APK of each other app.
+            "fallbackToOlderReleases": True,
+            # GitHub release tags (build-N-N) differ from APK versionNames.
+            "versionDetection": False,
         }),
     })
 
