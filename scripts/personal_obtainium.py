@@ -9,6 +9,7 @@ package_ids = {
     "facebook": "com.facebook.katana.morphe",
     "instagram": "com.instagram.android",
     "youtube": "app.morphe.android.youtube",
+    "discord": "com.discord",
 }
 
 apps = []
