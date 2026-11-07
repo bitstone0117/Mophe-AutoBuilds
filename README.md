@@ -32,31 +32,11 @@ A single-app Release is intentional: for example, if only Discord changes, that 
 
 ### Scheduled checks (Taiwan / Asia-Taipei)
 
-The normal production schedule is:
+GitHub's native `schedule` trigger has been **removed** from `.github/workflows/personal-build.yml`, because it did not produce scheduled runs in this fork. The workflow now starts only through `workflow_dispatch` (manual GitHub Actions runs or an external API caller).
 
-```yaml
-schedule:
-  - cron: '17 0,4 * * *'
-```
+An external cron-job.org task has been successfully tested triggering `app=check`; the intended ongoing cadence is **daily at 00:00 Asia/Taipei**, configured in the cron-job.org account rather than this repository. Verify and save the schedule there; changes in this GitHub repository cannot configure or confirm the external task's timetable.
 
-GitHub cron is in **UTC**: this means **08:17 and 12:17 Taiwan time** every day. GitHub Actions scheduling is best-effort; runs may be delayed or occasionally skipped.
-
-**Temporary schedule trigger test:** To test that GitHub actually starts `schedule` runs, change only the cron line on `main` to:
-
-```yaml
-schedule:
-  - cron: '*/5 * * * *'
-```
-
-This is **temporary**, not the intended normal frequency. After a genuine scheduled run appears in Actions, restore `17 0,4 * * *` and commit again. The validation tests accept either value for this diagnostic purpose.
-
-When viewing the Actions run, distinguish events:
-
-- `schedule`: GitHub triggered the workflow automatically — this is the event the test aims to verify.
-- `workflow_dispatch`: a person clicked **Run workflow** — it does not prove scheduling works.
-- `push`: a commit triggered validation — it also does not prove scheduling works.
-
-With no changed patch source, an expected successful scheduled run shows **check: success**, **build: skipped**, **publish: skipped**. Check that the workflow is enabled in the Actions UI, especially on a fork. Don't interpret an isolated missing 5-minute tick as definitive failure: GitHub's scheduler does not guarantee exact timing.
+For a successful run with unchanged upstream patches, expect **check: success**, **build: skipped**, and **publish: skipped**.
 
 ### Manual build
 
@@ -66,14 +46,14 @@ Open [Actions → Personal FB IG YouTube Discord](https://github.com/bitstone011
 - `check`: perform the normal **selective update check** (build/publish only changed patch sources; skip if none changed). This is suitable for external scheduled `workflow_dispatch` calls.
 - `youtube`, `instagram`, `facebook`, or `discord`: force a build **and publish only that app**.
 
-Manual `all` and single-app selections are forced, even if the upstream patch release has not changed. The new `check` selection is **not** forced. It tests the checker and supports external scheduled dispatch, but a `workflow_dispatch` run alone does not prove GitHub's native `schedule` event works.
+Manual `all` and single-app selections are forced, even if the upstream patch release has not changed. The `check` selection is **not** forced; it uses the same selective-update behavior for manual or external scheduled dispatch.
 
 
-### Workaround when native GitHub `schedule` never fires
+### External scheduled dispatch (cron-job.org)
 
 If the repository's Actions history shows **zero `schedule` events**, even while enabled and on `main`, the problem occurs before the checker job runs. GitHub's own scheduler cannot be repaired from inside `check_personal_updates.py`. GitHub's public-fork and scheduling behavior is described in the [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
-As an **optional** workaround, an external scheduler that supports custom HTTP requests (such as [cron-job.org](https://cron-job.org/en/)) can send a `POST` to GitHub's [workflow dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event):
+This fork uses an externally managed scheduler ([cron-job.org](https://cron-job.org/en/)) to send a `POST` to GitHub's [workflow dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event). Keep the external task enabled and configured with:
 
 ```text
 POST https://api.github.com/repos/bitstone0117/Mophe-AutoBuilds/actions/workflows/personal-build.yml/dispatches
@@ -90,7 +70,7 @@ Body:
 
 Create the fine-grained PAT for **only this repository**, granting only **Actions: Read and write** (required by the dispatch API). It is **not** the read-only GitHub PAT used by Obtainium. Treat this PAT as a privileged secret: an external scheduler would hold it, so use a trustworthy service, a limited expiration, and revoke it if no longer needed. Do not put the token in code, Release assets, README, support tickets, or chat.
 
-Configure the external scheduler for Taiwan 08:17 and 12:17 and verify its timezone setting. A successful API request creates a **`workflow_dispatch`** run, not a native `schedule` run. The `check` input is essential: omitting it would use the `all` default and force four rebuilds on each call. This workaround requires separate account setup and has **not** been configured in this repository automatically.
+Configure the external scheduler for **00:00 Asia/Taipei daily** (UTC 16:00 on the previous calendar day) and verify its timezone setting. A successful API request returns HTTP 204 and creates a **`workflow_dispatch`** run. The `check` input is essential: omitting it would use the `all` default and force four rebuilds on each call. External scheduling is configured and managed in cron-job.org, **not** through this repository.
 
 ## Install and update with Obtainium
 
