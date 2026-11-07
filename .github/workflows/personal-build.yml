@@ -8,6 +8,7 @@ on:
         default: all
         options:
           - all
+          - check
           - youtube
           - instagram
           - facebook
@@ -37,7 +38,7 @@ jobs:
         id: detect
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BUILD_SELECTION: ${{ github.event_name == 'workflow_dispatch' && inputs.app || '' }}
+          BUILD_SELECTION: ${{ github.event_name == 'workflow_dispatch' && inputs.app != 'check' && inputs.app || '' }}
         run: python scripts/check_personal_updates.py
 
   build:
