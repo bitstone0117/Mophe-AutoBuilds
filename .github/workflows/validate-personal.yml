@@ -2,6 +2,8 @@ name: Validate personal configuration
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,3 +18,4 @@ jobs:
       - run: pip install -r requirements.txt pytest pyyaml
       - run: python -m compileall -q src scripts
       - run: python -m pytest -q tests/test_obtainium.py tests/test_version_mismatch.py tests/test_direct.py
+      - run: python -m pytest -q tests/test_personal_updates.py

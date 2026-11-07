@@ -1,7 +1,9 @@
 """Check patch releases before rebuilding personal APKs."""
+import argparse
 import base64
 import json
 import os
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -45,8 +47,8 @@ def source_signature(owner, name):
         key=lambda item: item["name"],
     )
 
-    if not assets:
-        raise RuntimeError(f"No release assets: {owner}/{name}")
+    if not any(item["name"].endswith(".mpp") for item in assets):
+        raise RuntimeError(f"No patch bundle in release: {owner}/{name}")
 
     return {
         "tag": release["tag_name"],
@@ -54,12 +56,21 @@ def source_signature(owner, name):
     }
 
 
-def main():
-    current = {
+def current_sources():
+    return {
         app: source_signature(owner, name)
         for app, (owner, name) in SOURCES.items()
     }
 
+
+def verify_state(path):
+    expected = json.loads(Path(path).read_text())["sources"]
+    if expected != current_sources():
+        raise RuntimeError("Patch sources changed during build; refusing to publish stale state. Retry the workflow.")
+
+
+def main():
+    current = current_sources()
     try:
         previous_release = fetch_json(
             f"{API}/repos/{REPO}/releases/latest"
@@ -125,4 +136,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--verify-state", help="Abort publishing if upstream changed during build")
+    args = parser.parse_args()
+    if args.verify_state:
+        verify_state(args.verify_state)
+    else:
+        main()

@@ -1,12 +1,67 @@
 # FB / IG / YouTube personal automation
 
-Status: prepared for a personal fork; no device or cloud build has been verified yet.
+The personal workflow checks stable upstream patch releases at **08:17 Taipei**
+(00:17 UTC), with a **12:17 Taipei** catch-up check (04:17 UTC). GitHub schedules
+are best-effort and may be delayed or dropped. Both checks compare against
+`source-state.json` on the latest published release. No changes means no APK
+build and no release; a change to any source builds all three apps.
 
-Only `personal-build.yml` is active. It builds all three apps daily at 08:17
-Asia/Taipei (GitHub may delay runs) or through Run workflow. A failed matrix
-build prevents the whole release. Every complete build gets a new release tag,
-so patch-only changes are visible to Obtainium. This deliberately trades extra
-daily builds for straightforward update detection.
+Comparison includes the release tag and sorted asset names, IDs and digests,
+so replacing an asset under the same tag is detected. It intentionally includes
+release metadata assets as well as patch bundles. This monitors patch releases,
+not standalone CLI releases or every new stock APK version. Missing state or
+an incomplete published release triggers recovery builds; API/download errors
+fail the check instead of being interpreted as an update.
+
+Manual runs intentionally force a build for troubleshooting. Select `all` to
+publish; single-app tests never publish. Any failed/cancelled build blocks
+publication. Immediately before publishing, the workflow checks that upstream
+still matches the captured state; if it changed during the build, the run fails
+and the next check retries. APKs and state upload to a draft first; only a
+successful upload is made public/latest. Failed drafts do not advance the
+comparison baseline. Remove abandoned drafts manually when convenient.
+
+## Schedule diagnosis and recovery
+
+Observed on 2026-11-07:
+
+- Default branch: `main`; personal workflow ID: `409036289`; API state: `active`.
+- Repository created 2026-11-06; 60-day inactivity cannot explain this incident.
+- Manual run #11 succeeded (check, all three builds, publish); schedule runs: 0.
+- `17 0 * * *` is valid and means 08:17 Taipei. The checker cannot prevent a
+  schedule event from being created, since it runs only after that event.
+- GitHub does not expose its cron registration/queue state. These observations
+  do not prove fork disablement, an actor issue, or a dropped scheduler event.
+  The Actions settings endpoint requires authentication/admin access that was
+  unavailable through the review connection, so its current policy is unverified.
+
+The cron change retains 08:17 and adds a catch-up check. Merge the PR into `main`
+to make the schedule change effective; PR branches do not register schedules.
+Changing cron is GitHub's documented way to reactivate a deactivated schedule
+and associate its actor with the change. This is a mitigation, not proof of the
+original cause or a guarantee of an on-time run.
+
+In **Actions → Personal FB IG YouTube**, click **Enable workflow** if shown.
+For a fresh fork, first accept **I understand my workflows, go ahead and enable
+them** if shown. In **Settings → Actions → General**, confirm Actions are enabled
+and the policy permits the actions used here. Do not broaden an existing policy
+unnecessarily. No signing secrets or package names need to change.
+
+With an authenticated GitHub CLI, verify or enable the workflow:
+
+```sh
+gh api repos/bitstone0117/Mophe-AutoBuilds/actions/workflows/personal-build.yml --jq .state
+gh workflow enable personal-build.yml --repo bitstone0117/Mophe-AutoBuilds
+gh run list --repo bitstone0117/Mophe-AutoBuilds --workflow personal-build.yml --event schedule
+```
+
+After merge, confirm a real `schedule` run at the next check window. `active`
+and a successful manual run alone do not prove the scheduler works. If both
+windows are missed while still active, provide the workflow ID and timestamps
+to GitHub Support. Avoid unconditional rebuilds or empty daily keepalive commits.
+
+References: [GitHub schedule behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule),
+[enable a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows).
 
 ## Private signing setup
 
@@ -34,12 +89,11 @@ error if preserving local data is required.
 
 ## Facebook compatibility
 
-HushFacebook is pinned to v0.21.0 and Facebook 585.0.0.47.54, arm64 build
-476015655. The downloaded original bundle must match the upstream SHA-256
-1090dff6c9fe4903dd7c590f4d340bf0a912e43cd0a79c019c43bc265f5dda53.
-A changed bundle fails closed. Updating Facebook compatibility requires changing
-the patch tag, version, build and hash together after upstream verification.
-Facebook patch updates are therefore intentionally not yet fully automatic.
+HushFacebook patches follow the latest stable release, just like Morphe and
+HushGram. Stock APK compatibility is handled by the existing source resolvers
+and validation. A new patch release that cannot be built safely will fail and
+leave the last complete published release/state intact; it must not be marked
+as successfully processed. Device installation still requires verification.
 
 ## First run
 
