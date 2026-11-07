@@ -1,0 +1,26 @@
+name: Schedule Trigger Diagnostic
+# TEMPORARY diagnostic: proves whether GitHub schedule events are delivered.
+# No checkout, upstream API calls, APK downloads, builds, or releases.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Print event and UTC time
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          echo "event=$EVENT_NAME"
+          echo "repository=$REPOSITORY"
+          echo "branch=$REF_NAME"
+          date -u '+UTC=%Y-%m-%dT%H:%M:%SZ'
