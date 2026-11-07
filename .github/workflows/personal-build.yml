@@ -14,7 +14,7 @@ on:
           - discord
   schedule:
     # 08:17 Taipei, with a 12:17 catch-up check if GitHub drops/delays a run.
-    - cron: '17 0,4 * * *'
+    - cron: '*/5 * * * *'
 permissions:
   contents: read
 concurrency:
