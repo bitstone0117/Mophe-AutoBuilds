@@ -1,4 +1,4 @@
-"""Offline update detection and release transaction regression tests."""
+"""Offline update detection, selective publishing, and migration tests."""
 import base64
 import copy
 import importlib.util
@@ -12,11 +12,13 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+APPS = ['youtube', 'instagram', 'facebook', 'discord']
 
 
 @pytest.fixture
 def checker(monkeypatch):
     monkeypatch.setenv('GITHUB_REPOSITORY', 'example/builds')
+    monkeypatch.delenv('BUILD_SELECTION', raising=False)
     spec = importlib.util.spec_from_file_location('checker', ROOT / 'scripts/check_personal_updates.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -30,8 +32,10 @@ def scenario(checker, monkeypatch, tmp_path):
     ]} for i, app in enumerate(checker.SOURCES, 1)}
     previous = {'assets': [{'name': f'{app}-signed.apk'} for app in checker.SOURCES]
                 + [{'name': 'source-state.json', 'browser_download_url': 'https://example/state'}]}
-    state = {'build_profile': checker.BUILD_PROFILE, 'sources': {app: {'tag': 'v1', 'assets': copy.deepcopy(r['assets'])}
-                         for app, r in releases.items()}}
+    state = {'build_profile': checker.BUILD_PROFILE, 'sources': {
+        app: {'tag': 'v1', 'assets': copy.deepcopy(r['assets'])}
+        for app, r in releases.items()
+    }}
     calls = []
 
     def fetch(url, authenticated=True):
@@ -57,20 +61,27 @@ def outputs(path):
     return dict(line.split('=', 1) for line in path.read_text().splitlines())
 
 
-def test_unchanged_skips_and_round_trips_state(checker, scenario):
-    _, _, state, output, calls = scenario
+def decoded_state(path):
+    return json.loads(base64.b64decode(outputs(path)['state_b64']))
+
+
+def test_unchanged_skips_and_preserves_all_baselines(checker, scenario):
+    _, _, old, output, calls = scenario
     checker.main()
     result = outputs(output)
     assert result['has_updates'] == 'false'
-    assert json.loads(base64.b64decode(result['state_b64'])) == state
+    assert json.loads(result['matrix_json']) == {'include': []}
+    assert decoded_state(output)['sources'] == old['sources']
+    assert decoded_state(output)['selected_apps'] == []
+    assert decoded_state(output)['published_apps'] == APPS
     assert ('https://example/state', False) in calls
 
 
-
-@pytest.mark.parametrize('app', ['youtube', 'instagram', 'facebook', 'discord'])
+@pytest.mark.parametrize('app', APPS)
 @pytest.mark.parametrize('change', ['tag', 'asset_id', 'digest'])
-def test_each_source_update_triggers_build(checker, scenario, app, change):
-    releases, _, _, output, _ = scenario
+def test_only_changed_app_builds(checker, scenario, app, change):
+    releases, _, old, output, _ = scenario
+    original = copy.deepcopy(old['sources'])
     if change == 'tag':
         releases[app]['tag_name'] = 'v2'
     elif change == 'asset_id':
@@ -79,21 +90,86 @@ def test_each_source_update_triggers_build(checker, scenario, app, change):
         releases[app]['assets'][0]['digest'] = 'sha256:new'
     checker.main()
     assert outputs(output)['has_updates'] == 'true'
+    assert json.loads(outputs(output)['selected_apps']) == [app]
+    assert json.loads(outputs(output)['matrix_json']) == {
+        'include': [{'app': app, 'source': checker.BUILD_SOURCES[app]}]
+    }
+    next_state = decoded_state(output)
+    assert next_state['sources'][app] != original[app]
+    for other in set(APPS) - {app}:
+        assert next_state['sources'][other] == original[other]
+
+
+def test_only_selected_app_advanced_after_publish(checker, scenario, monkeypatch):
+    releases, previous, state, output, _ = scenario
+    releases['discord']['tag_name'] = 'v2'
+    checker.main()
+    after_discord = decoded_state(output)
+    assert after_discord['selected_apps'] == ['discord']
+    output.unlink()
+    state.clear()
+    state.update(after_discord)
+    previous['assets'] = [
+        {'name': 'discord-new.apk'},
+        {'name': 'source-state.json', 'browser_download_url': 'https://example/state'},
+    ]
+    checker.main()
+    assert outputs(output)['has_updates'] == 'false'
+    assert decoded_state(output)['published_apps'] == APPS
+
+
+def test_pending_unselected_change_is_not_ignored(checker, scenario, monkeypatch):
+    releases, previous, state, output, _ = scenario
+    releases['youtube']['tag_name'] = 'v2'
+    releases['discord']['tag_name'] = 'v2'
+    monkeypatch.setenv('BUILD_SELECTION', 'discord')
+    checker.main()
+    after_discord = decoded_state(output)
+    assert after_discord['selected_apps'] == ['discord']
+    assert after_discord['sources']['youtube']['tag'] == 'v1'
+    monkeypatch.delenv('BUILD_SELECTION')
+    output.unlink()
+    state.clear()
+    state.update(after_discord)
+    previous['assets'] = [
+        {'name': 'discord-new.apk'},
+        {'name': 'source-state.json', 'browser_download_url': 'https://example/state'},
+    ]
+    checker.main()
+    assert json.loads(outputs(output)['selected_apps']) == ['youtube']
+
+
+@pytest.mark.parametrize('choice,expected', [
+    ('all', APPS),
+    ('youtube', ['youtube']),
+    ('instagram', ['instagram']),
+    ('facebook', ['facebook']),
+    ('discord', ['discord']),
+])
+def test_manual_selection_builds_and_publishes_only_choice(checker, scenario, monkeypatch, choice, expected):
+    _, _, _, output, _ = scenario
+    monkeypatch.setenv('BUILD_SELECTION', choice)
+    checker.main()
+    assert json.loads(outputs(output)['selected_apps']) == expected
 
 
 @pytest.mark.parametrize('missing', ['release', 'state', 'apk', 'source'])
-def test_incomplete_baseline_rebuilds(checker, scenario, missing):
+def test_incomplete_baseline_recovers_only_missing_apps(checker, scenario, missing):
     _, previous, state, output, _ = scenario
     if missing == 'release':
         previous['error'] = 404
+        expected = APPS
     elif missing == 'state':
         previous['assets'] = previous['assets'][:-1]
+        expected = APPS
     elif missing == 'apk':
         previous['assets'] = previous['assets'][1:]
+        expected = ['youtube']
     else:
         state['sources'].pop('facebook')
+        expected = ['facebook']
     checker.main()
-    assert outputs(output)['has_updates'] == 'true'
+    assert json.loads(outputs(output)['selected_apps']) == expected
 
 
 @pytest.mark.parametrize('code', [401, 403, 429, 500])
@@ -122,20 +198,25 @@ def test_asset_order_does_not_change_signature(checker, scenario):
     assert checker.current_sources() == before
 
 
-def test_publish_rejects_changed_upstream(checker, scenario, tmp_path):
+def test_verify_checks_selected_app_only(checker, scenario, tmp_path):
     releases, _, state, _, _ = scenario
+    state['selected_apps'] = ['discord']
     path = tmp_path / 'state.json'
     path.write_text(json.dumps(state))
     checker.verify_state(path)
     releases['youtube']['tag_name'] = 'v2'
+    checker.verify_state(path)  # unrelated app update does not block this release
+    releases['discord']['tag_name'] = 'v2'
     with pytest.raises(RuntimeError, match='changed during build'):
         checker.verify_state(path)
 
 
-@pytest.mark.parametrize('fail_create', [False, True])
-def test_release_only_goes_public_after_successful_upload(tmp_path, fail_create):  
-    for app in ['youtube', 'instagram', 'facebook', 'discord']:
+def run_release(tmp_path, apps, fail_create=False):
+    for app in apps:
         (tmp_path / f'{app}-test.apk').write_text('apk')
+    (tmp_path / 'source-state.json').write_text(json.dumps({'selected_apps': apps}))
+    for name in ['obtainium.json', 'SHA256SUMS.txt']:
+        (tmp_path / name).write_text('fixture')
     fake = tmp_path / 'gh'
     fake.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$GH_LOG"\n'
                     'if [ "$2" = create ] && [ "$FAIL_CREATE" = 1 ]; then exit 1; fi\n')
@@ -145,13 +226,33 @@ def test_release_only_goes_public_after_successful_upload(tmp_path, fail_create)
            'FAIL_CREATE': str(int(fail_create)), 'GITHUB_RUN_NUMBER': '12',
            'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': 'abc123'}
     result = subprocess.run(['bash', str(ROOT / 'scripts/publish_personal_release.sh')],
-                            cwd=tmp_path, env=env)
-    calls = log.read_text().splitlines()
+                            cwd=tmp_path, env=env, capture_output=True, text=True)
+    calls = log.read_text().splitlines() if log.exists() else []
+    return result, calls
+
+
+@pytest.mark.parametrize('apps', [['discord'], ['youtube', 'instagram'], APPS])
+@pytest.mark.parametrize('fail_create', [False, True])
+def test_release_only_selected_apps_after_successful_upload(tmp_path, apps, fail_create):
+    result, calls = run_release(tmp_path, apps, fail_create)
     assert '--draft --target abc123' in calls[0]
+    for app in apps:
+        assert f'{app}-test.apk' in calls[0]
+    for other in set(APPS) - set(apps):
+        assert f'{other}-test.apk' not in calls[0]
     assert (result.returncode != 0) == fail_create
     assert len(calls) == (1 if fail_create else 2)
     if not fail_create:
         assert calls[1] == 'release edit build-12-1 --draft=false --latest'
+
+
+def test_release_rejects_extra_apk(tmp_path):
+    for app in ['youtube', 'discord']:
+        (tmp_path / f'{app}-test.apk').write_text('apk')
+    (tmp_path / 'source-state.json').write_text(json.dumps({'selected_apps': ['discord']}))
+    result = subprocess.run(['bash', str(ROOT / 'scripts/publish_personal_release.sh')],
+                            cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode != 0
 
 
 def test_workflow_contract():
@@ -160,56 +261,31 @@ def test_workflow_contract():
     jobs = workflow['jobs']
     assert jobs['build']['needs'] == 'check'
     assert "needs.check.outputs.has_updates == 'true'" in jobs['build']['if']
+    assert jobs['build']['strategy']['matrix'] == '${{ fromJSON(needs.check.outputs.matrix_json) }}'
     assert jobs['publish']['needs'] == ['check', 'build']
     assert "needs.build.result == 'success'" in jobs['publish']['if']
-    assert "inputs.app == 'all'" in jobs['publish']['if']
+    assert 'BUILD_SELECTION' in jobs['check']['steps'][-1]['env']
     script = jobs['publish']['steps'][-1]['run']
     assert script.index('--verify-state') < script.index('publish_personal_release.sh')
-    matrix = jobs['build']['strategy']['matrix']
-    for app in ['youtube', 'instagram', 'facebook', 'discord']:
-        assert f'"app":"{app}"' in matrix
+    assert ' -eq 4' not in script
+    assert jobs['check']['outputs']['selected_apps']
+    assert jobs['check']['outputs']['matrix_json']
+    assert workflow['on']['workflow_dispatch']['inputs']['app']['options'] == ['all', *APPS]
     for source, expected in [('morphe', ('MorpheApp', 'morphe-patches')),
-                              ('hushgram', ('SysAdminDoc', 'HushGram')),
-                              ('hushfacebook', ('SysAdminDoc', 'HushFacebook'))]:
-        config = json.loads((ROOT / f'sources/{source}.json').read_text())[-1]
+                             ('hushgram', ('SysAdminDoc', 'HushGram')),
+                             ('hushfacebook', ('SysAdminDoc', 'HushFacebook')),
+                             ('venus', ('VenusIsJaded', 'Venus-Patches'))]:
+        config = json.loads((ROOT / f'sources/{source}.json').read_text())[-2 if source == 'venus' else -1]
         assert (config['user'].lower(), config['repo'].lower()) == tuple(x.lower() for x in expected)
         assert config['tag'] == 'latest'
 
 
-@pytest.mark.parametrize('event,app,updates,build_result,want_build,want_publish', [
-    ('schedule', '', 'false', 'skipped', False, False),
-    ('schedule', '', 'true', 'success', True, True),
-    ('schedule', '', 'true', 'failure', True, False),
-    ('schedule', '', 'true', 'cancelled', True, False),
-    ('workflow_dispatch', 'all', 'false', 'success', True, True),
-    ('workflow_dispatch', 'youtube', 'true', 'success', True, False),
-    ('workflow_dispatch', 'instagram', 'true', 'success', True, False),
-    ('workflow_dispatch', 'facebook', 'true', 'success', True, False),
-    ('workflow_dispatch', 'discord', 'true', 'success', True, False),
-])
-def test_actual_job_conditions(event, app, updates, build_result, want_build, want_publish):
-    workflow = yaml.load((ROOT / '.github/workflows/personal-build.yml').read_text(), Loader=yaml.BaseLoader)
-    values = {'github.event_name': event, 'inputs.app': app,
-              'needs.check.outputs.has_updates': updates,
-              'needs.check.result': 'success', 'needs.build.result': build_result,
-              'success()': build_result == 'success'}
-
-    def evaluate(expression):
-        expression = expression.removeprefix('${{').removesuffix('}}').strip()
-        for name, value in values.items():
-            expression = expression.replace(name, repr(value))
-        return eval(expression.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
-
-    assert evaluate(workflow['jobs']['build']['if']) == want_build
-    assert evaluate(workflow['jobs']['publish']['if']) == want_publish
-
-
-def test_existing_non_clone_release_rebuilds_once(checker, scenario):
-    _, _, state, output, _ = scenario
-    state.pop('build_profile')
+def test_original_three_app_profile_migration(checker, scenario):
+    _, previous, old, output, _ = scenario
+    old['build_profile'] = 'facebook-clone-v1'
+    old['sources'].pop('discord')
+    previous['assets'] = [
+        a for a in previous['assets'] if a['name'] != 'discord-signed.apk'
+    ]
     checker.main()
-    assert outputs(output)['has_updates'] == 'true'
-    state.update(json.loads(base64.b64decode(outputs(output)['state_b64'])))
-    output.unlink()
-    checker.main()
-    assert outputs(output)['has_updates'] == 'false'
+    assert json.loads(outputs(output)['selected_apps']) == ['discord']
