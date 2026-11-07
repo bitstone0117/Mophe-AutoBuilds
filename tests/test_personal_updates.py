@@ -30,7 +30,7 @@ def scenario(checker, monkeypatch, tmp_path):
     ]} for i, app in enumerate(checker.SOURCES, 1)}
     previous = {'assets': [{'name': f'{app}-signed.apk'} for app in checker.SOURCES]
                 + [{'name': 'source-state.json', 'browser_download_url': 'https://example/state'}]}
-    state = {'sources': {app: {'tag': 'v1', 'assets': copy.deepcopy(r['assets'])}
+    state = {'build_profile': checker.BUILD_PROFILE, 'sources': {app: {'tag': 'v1', 'assets': copy.deepcopy(r['assets'])}
                          for app, r in releases.items()}}
     calls = []
 
@@ -200,3 +200,14 @@ def test_actual_job_conditions(event, app, updates, build_result, want_build, wa
 
     assert evaluate(workflow['jobs']['build']['if']) == want_build
     assert evaluate(workflow['jobs']['publish']['if']) == want_publish
+
+
+def test_existing_non_clone_release_rebuilds_once(checker, scenario):
+    _, _, state, output, _ = scenario
+    state.pop('build_profile')
+    checker.main()
+    assert outputs(output)['has_updates'] == 'true'
+    state.update(json.loads(base64.b64decode(outputs(output)['state_b64'])))
+    output.unlink()
+    checker.main()
+    assert outputs(output)['has_updates'] == 'false'

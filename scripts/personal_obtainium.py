@@ -6,7 +6,7 @@ from pathlib import Path
 repo = os.environ["GITHUB_REPOSITORY"]
 
 package_ids = {
-    "facebook": "com.facebook.katana",
+    "facebook": "com.facebook.katana.morphe",
     "instagram": "com.instagram.android",
     "youtube": "app.morphe.android.youtube",
 }

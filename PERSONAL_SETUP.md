@@ -112,3 +112,31 @@ No public Pages site, Telegram messaging, or automatic old-run deletion is
 enabled. Historical releases accumulate; periodically remove obsolete APK
 releases if desired. Obtainium import and Android silent installation still
 require device validation. Public APK releases are visible to everyone.
+
+## Facebook clone (personal builds)
+
+Facebook now combines HushFacebook's recommended patches with Morphe's `Clone app`
+patch. The output package is `com.facebook.katana.morphe`, distinct from the stock
+`com.facebook.katana`, so the system Facebook can stay installed/disabled. The
+original Facebook package remains in download configurations because those fetch
+the stock input APK. The signing key is unchanged.
+
+`Block ad telemetry` is explicitly kept enabled: HushFacebook documents that a
+recommended patch sorting before `Clone app` is needed for clone manifest fixup
+ordering. The official clone bundle is downloaded under a `clone-` prefix to
+avoid overwriting the HushFacebook bundle if their versioned filenames coincide.
+The collector rejects a Facebook APK unless `aapt` confirms the expected clone ID.
+
+The state now includes `build_profile: facebook-clone-v1`; old releases without
+this profile trigger one complete rebuild even if patch versions have not changed.
+Later unchanged checks skip as before. Morphe updates are already monitored by
+the YouTube source, so updates to the shared clone bundle also rebuild all apps.
+
+Install the clone as a separate app and sign in again; the old app's local data
+is not migrated. Open the clone once to register its link handler. Re-add the
+Facebook entry in Obtainium using the new release's `obtainium.json` so it tracks
+`com.facebook.katana.morphe`; retain the existing YouTube/Instagram entries.
+APK installation, login, notifications and coexistence still require device testing.
+
+Upstream: https://github.com/SysAdminDoc/HushFacebook/blob/v0.21.0/README.md#package-conflict
+and https://github.com/MorpheApp/morphe-patches/blob/v2.1.0/patches/src/main/kotlin/app/morphe/patches/all/misc/clone/CloneAppPatch.kt

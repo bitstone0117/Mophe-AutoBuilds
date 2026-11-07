@@ -11,6 +11,8 @@ API = "https://api.github.com"
 REPO = os.environ["GITHUB_REPOSITORY"]
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
+BUILD_PROFILE = "facebook-clone-v1"
+
 SOURCES = {
     "youtube": ("MorpheApp", "morphe-patches"),
     "instagram": ("SysAdminDoc", "HushGram"),
@@ -65,6 +67,8 @@ def current_sources():
 
 def verify_state(path):
     expected = json.loads(Path(path).read_text())["sources"]
+    if json.loads(Path(path).read_text()).get("build_profile") != BUILD_PROFILE:
+        raise RuntimeError("Build profile mismatch; refusing to publish")
     if expected != current_sources():
         raise RuntimeError("Patch sources changed during build; refusing to publish stale state. Retry the workflow.")
 
@@ -81,6 +85,7 @@ def main():
         previous_release = None
 
     old_state = None
+    old_profile = None
     complete_release = False
 
     if previous_release:
@@ -105,12 +110,14 @@ def main():
         )
 
         if state_asset:
-            old_state = fetch_json(
+            saved_state = fetch_json(
                 state_asset["browser_download_url"],
                 authenticated=False,
-            ).get("sources")
+            )
+            old_state = saved_state.get("sources")
+            old_profile = saved_state.get("build_profile")
 
-    if old_state is None or not complete_release:
+    if old_state is None or not complete_release or old_profile != BUILD_PROFILE:
         changed = list(SOURCES)
     else:
         changed = [
@@ -119,7 +126,7 @@ def main():
         ]
 
     state = json.dumps(
-        {"sources": current},
+        {"sources": current, "build_profile": BUILD_PROFILE},
         sort_keys=True,
         separators=(",", ":"),
     )
