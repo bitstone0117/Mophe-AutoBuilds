@@ -257,7 +257,12 @@ def test_release_rejects_extra_apk(tmp_path):
 
 def test_workflow_contract():
     workflow = yaml.load((ROOT / '.github/workflows/personal-build.yml').read_text(), Loader=yaml.BaseLoader)
-    assert workflow['on']['schedule'] == [{'cron': '17 0,4 * * *'}]
+    # The 5-minute cadence is used only to verify GitHub schedule triggering.
+    # Production cadence is 08:17 and 12:17 Asia/Taipei (UTC 00:17/04:17).
+    assert workflow['on']['schedule'] in (
+        [{'cron': '17 0,4 * * *'}],
+        [{'cron': '*/5 * * * *'}],
+    )
     jobs = workflow['jobs']
     assert jobs['build']['needs'] == 'check'
     assert "needs.check.outputs.has_updates == 'true'" in jobs['build']['if']
