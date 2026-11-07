@@ -11,6 +11,7 @@ on:
           - youtube
           - instagram
           - facebook
+          - discord
   schedule:
     # 08:17 Taipei, with a 12:17 catch-up check if GitHub drops/delays a run.
     # Both runs compare the last published state; unchanged sources never build.
@@ -42,10 +43,20 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || needs.check.outputs.has_updates == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    
     strategy:
       fail-fast: false
       max-parallel: 3
-      matrix: ${{ fromJSON((github.event_name == 'schedule' || inputs.app == 'all') && '{"include":[{"app":"youtube","source":"morphe"},{"app":"instagram","source":"hushgram"},{"app":"facebook","source":"hushfacebook"}]}' || inputs.app == 'youtube' && '{"include":[{"app":"youtube","source":"morphe"}]}' || inputs.app == 'instagram' && '{"include":[{"app":"instagram","source":"hushgram"}]}' || '{"include":[{"app":"facebook","source":"hushfacebook"}]}') }}
+      matrix: >-
+        ${{ fromJSON(
+          (github.event_name == 'schedule' || inputs.app == 'all') &&
+          '{"include":[{"app":"youtube","source":"morphe"},{"app":"instagram","source":"hushgram"},{"app":"facebook","source":"hushfacebook"},{"app":"discord","source":"venus"}]}' ||
+          (inputs.app == 'youtube' && '{"include":[{"app":"youtube","source":"morphe"}]}') ||
+          (inputs.app == 'instagram' && '{"include":[{"app":"instagram","source":"hushgram"}]}') ||
+          (inputs.app == 'discord' && '{"include":[{"app":"discord","source":"venus"}]}') ||
+          '{"include":[{"app":"facebook","source":"hushfacebook"}]}'
+        ) }}
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -115,7 +126,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           STATE_B64: ${{ needs.check.outputs.state_b64 }}
         run: |
-          test "$(find release-apks -name '*.apk' | wc -l)" -eq 3
+          test "$(find release-apks -name '*.apk' | wc -l)" -eq 4
           python scripts/personal_obtainium.py
           printf '%s' "$STATE_B64" | base64 --decode > release-apks/source-state.json
           python scripts/check_personal_updates.py --verify-state release-apks/source-state.json
